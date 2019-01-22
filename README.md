@@ -6,6 +6,10 @@ Appreciation!
 Reznok's Atlas Tracker  
 https://atlas.reznok.com/
 
+## イメージ
+![image](readme-images/1.jpg)
+![image](readme-images/2.jpg)
+
 
 ## 機能概要
 - BotをDiscordサーバーに追加してBotを起動すると #cmd_aswdbチャンネルを作成します
