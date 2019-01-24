@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import asyncio
+import traceback
+
 import jsons
 import requests
 from discord import ChannelType
@@ -224,86 +226,108 @@ class StartCommand(Command):
 
         self.config.is_watch_started = True
         while self.config.is_watch_started:
-            print('WebServiceよりjson取得開始.')
-            atlas_grids_json = requests.get(self.config.url).text
-            if not atlas_grids_json:
-                print('取得失敗. 処理終了.')
-                return False
-            print('取得成功.')
-            grids_dict = jsons.loads(atlas_grids_json)
-
-            # サーバ情報収集
-            servers_info = {}
-            for grid in grids_dict["grids"]:
-                server_name = grid["grid"]
-                player_count = len(grid["players"])
-                player_sbn_count = 0
-                last_server_info = None
-                if len(self.config.last_servers_info) != 0 and server_name in self.config.last_servers_info:
-                    last_server_info = self.config.last_servers_info[server_name]
-                if last_server_info is not None:
-                    last_player_count = last_server_info["player_count"]
-                    if last_player_count is not None:
-                        player_sbn_count = player_count - last_player_count
-                players = grid["players"]
-                blacklist_players = []
-                for bl_player in blacklist_players:
-                    for player in players:
-                        player_name = player["name"]
-                        if player_name.lower().find(bl_player.lower()) == -1:
-                            continue
-                        blacklist_players.append(player)
-
-                servers_info[server_name] = {
-                    "server_name": server_name,
-                    'player_count': player_count,
-                    "player_sbn_count": player_sbn_count,
-                    "blacklist_players": blacklist_players
-                }
-
-            # サーバ情報を元に通知
-            timestr = datetime.now().strftime("%m/%d %H:%M")
-            tgt_channels = utils.get_channels(self.config.client)
-            print("get_channels end. tgt_channels.len=", len(tgt_channels) > 0)
-            if len(tgt_channels) > 0:
-                for tgt_channel in tgt_channels:
-                    if tgt_channel.name.upper() not in servers_info:
-                        msg = "{}　{}　データ取得エラー.".format(timestr, tgt_channel.name.upper())
-                        await self.send_message(tgt_channel, msg)
+            try:
+                try:
+                    print('WebServiceに接続開始.')
+                    atlas_grids_json = requests.get(self.config.url).text
+                    print("WebService接続成功.")
+                    if not atlas_grids_json:
+                        msg = '【エラー】jsonが空. 再度実行.'
+                        print(msg)
+                        await self.send_message(message.channel, msg)
+                        await asyncio.sleep(self.config.watch_interval)
                         continue
-                    server_info = servers_info[tgt_channel.name.upper()]
-                    if server_info is None:
-                        continue
+                except Exception as e:
+                    with open(consts.LOG_FILE, 'a') as f:
+                        traceback.print_exc(file=f)
+                    msg = '【エラー】WebService接続失敗. サーバダウンかも. 再度実行.'
+                    print(msg)
+                    await self.send_message(message.channel, msg)
+                    await asyncio.sleep(self.config.watch_interval)
+                    continue
 
-                    server_name = server_info["server_name"]
-                    player_count = server_info["player_count"]
-                    player_sbn_count = server_info["player_sbn_count"]
-                    blacklist_players = server_info["blacklist_players"]
+                print('データ取得成功.')
+                grids_dict = jsons.loads(atlas_grids_json)
 
-                    # 定例メッセージ送信
-                    msg = "{}　{}　人数:{}　BL対象者:{}".format(timestr, server_name, player_count, blacklist_players)
-                    await self.send_message(tgt_channel, msg)
+                # サーバ情報収集
+                servers_info = {}
+                for grid in grids_dict["grids"]:
+                    server_name = grid["grid"]
+                    player_count = len(grid["players"])
+                    player_sbn_count = 0
+                    last_server_info = None
+                    if len(self.config.last_servers_info) != 0 and server_name in self.config.last_servers_info:
+                        last_server_info = self.config.last_servers_info[server_name]
+                    if last_server_info is not None:
+                        last_player_count = last_server_info["player_count"]
+                        if last_player_count is not None:
+                            player_sbn_count = player_count - last_player_count
+                    players = grid["players"]
+                    blacklist_players = []
+                    for bl_player in blacklist_players:
+                        for player in players:
+                            player_name = player["name"]
+                            if player_name.lower().find(bl_player.lower()) == -1:
+                                continue
+                            blacklist_players.append(player)
 
-                    # 警告メッセージ(人数急増)
-                    if self.config.player_sbn_count <= player_sbn_count:
-                        msg = "@everyone サーバ人数急増. 閾値:{} 増加人数:{}".format(self.config.player_sbn_count, player_sbn_count)
-                        await self.send_message(tgt_channel, msg)
+                    servers_info[server_name] = {
+                        "server_name": server_name,
+                        'player_count': player_count,
+                        "player_sbn_count": player_sbn_count,
+                        "blacklist_players": blacklist_players
+                    }
 
-                    # 警告メッセージ(ブラックリスト対象の侵入)
-                    if len(blacklist_players) > 0:
-                        if server_name not in self.config.blacklist_notice_server_names:
-                            msg = "@everyone ブラックリスト対象侵入. 対象:{}".format(blacklist_players)
+                # サーバ情報を元に通知
+                timestr = datetime.now().strftime("%m/%d %H:%M")
+                tgt_channels = utils.get_channels(self.config.client)
+                print("get_channels end. tgt_channels.len=", len(tgt_channels) > 0)
+                if len(tgt_channels) > 0:
+                    for tgt_channel in tgt_channels:
+                        if tgt_channel.name.upper() not in servers_info:
+                            msg = "{}　{}　データ取得エラー.".format(timestr, tgt_channel.name.upper())
                             await self.send_message(tgt_channel, msg)
-                            self.config.blacklist_notice_server_names.append(server_name)
+                            continue
+                        server_info = servers_info[tgt_channel.name.upper()]
+                        if server_info is None:
+                            continue
 
-                    # 通常メッセージ(ブラックリスト対象者0になった)
-                    if len(blacklist_players) == 0 and server_name in self.config.blacklist_notice_server_names:
-                        msg = "ブラックリスト対象はいなくなりました."
+                        server_name = server_info["server_name"]
+                        player_count = server_info["player_count"]
+                        player_sbn_count = server_info["player_sbn_count"]
+                        blacklist_players = server_info["blacklist_players"]
+
+                        # 定例メッセージ送信
+                        msg = "{}　{}　人数:{}　BL対象者:{}".format(timestr, server_name, player_count, blacklist_players)
                         await self.send_message(tgt_channel, msg)
-                        self.config.blacklist_notice_server_names.remove(server_name)
 
-            # 今回取得したサーバ情報を保持
-            self.config.last_servers_info = servers_info
+                        # 警告メッセージ(人数急増)
+                        if self.config.player_sbn_count <= player_sbn_count:
+                            msg = "@everyone サーバ人数急増. 閾値:{} 増加人数:{}".format(self.config.player_sbn_count, player_sbn_count)
+                            await self.send_message(tgt_channel, msg)
+
+                        # 警告メッセージ(ブラックリスト対象の侵入)
+                        if len(blacklist_players) > 0:
+                            if server_name not in self.config.blacklist_notice_server_names:
+                                msg = "@everyone ブラックリスト対象侵入. 対象:{}".format(blacklist_players)
+                                await self.send_message(tgt_channel, msg)
+                                self.config.blacklist_notice_server_names.append(server_name)
+
+                        # 通常メッセージ(ブラックリスト対象者0になった)
+                        if len(blacklist_players) == 0 and server_name in self.config.blacklist_notice_server_names:
+                            msg = "ブラックリスト対象はいなくなりました."
+                            await self.send_message(tgt_channel, msg)
+                            self.config.blacklist_notice_server_names.remove(server_name)
+
+                # 今回取得したサーバ情報を保持
+                self.config.last_servers_info = servers_info
+            except Exception as e:
+                with open(consts.LOG_FILE, 'a') as f:
+                    traceback.print_exc(file=f)
+                msg = '【エラー】処理続行. 複数回発生したら/stopして.'
+                print(msg)
+                await self.send_message(message.channel, msg)
+
             await asyncio.sleep(self.config.watch_interval)
         return True
 
