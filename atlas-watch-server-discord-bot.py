@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import os
+
 import discord
 import configparser
 from discord import ChannelType
@@ -159,6 +161,9 @@ async def on_ready():
     print('------')
 
     try:
+        print("ログ出力フォルダ作成.")
+        os.makedirs(consts.LOG_FOLDER, exist_ok=True)
+
         servers = utils.get_none_cmd_channel_servers(client)
         if servers:
             print("Bot用コマンドチャンネル追加...")
