@@ -480,7 +480,7 @@ class AddServerCommand(Command):
         return msg
 
     def valid_custom(self, message, args):
-        if not args or len(args) != 2 or args.upper() not in consts.SERVER_NAMES:
+        if not args or args.upper() not in consts.SERVER_NAMES:
             return "サーバー名にA1～O15を設定してください."
         if utils.exists_channel(message.server, args):
             return "対象サーバは既に監視対象です."
