@@ -566,8 +566,17 @@ class StatusCommand(Command):
 
     async def execute_cmd(self, message, args):
         msg_started = "監視中" if self.config.is_watch_started else "監視していません"
-        msg = "監視状態:{}\n監視ワールド:{}\n監視間隔(秒):{}\n通知対象プレイヤー増加数:{}\nブラックリスト:{}\nブラックリスト侵入中サーバ:{}".format(
-            msg_started, self.config.watch_world, self.config.watch_interval, self.config.player_sbn_count, self.config.blacklist, self.config.blacklist_notice_server_names)
+        msg = "監視状態:{}\n監視ワールド:{} {}\n監視間隔(秒):{}\n通知対象プレイヤー増加数:{}\nブラックリスト:{}\nブラックリスト侵入中サーバ:{}".format(msg_started,
+                                                                                                        self.config.watch_world,
+                                                                                                        utils.get_value(
+                                                                                                            "id",
+                                                                                                            self.config.watch_world,
+                                                                                                            "name",
+                                                                                                            consts.CLUSTERS),
+                                                                                                        self.config.watch_interval,
+                                                                                                        self.config.player_sbn_count,
+                                                                                                        self.config.blacklist,
+                                                                                                        self.config.blacklist_notice_server_names)
         await self.send_message(message.channel, msg)
         return True
 
@@ -588,7 +597,7 @@ class SetWatchWorldCommand(Command):
         if not args or not args.isdecimal():
             return "1から4の数字を設定してください."
         int_val = int(args)
-        if int_val < 1 and 4 < int_val:
+        if int_val < 1 or 4 < int_val:
             return "1から4の数字を設定してください."
 
     async def execute_cmd(self, message, args):
