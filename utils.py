@@ -32,7 +32,7 @@ def get_channels(client):
         for channel in server.channels:
             if ChannelType.text != channel.type:
                 continue
-            if channel.name.upper() not in consts.SERVER_NAMES:
+            if not exists_server_name(channel.name.upper()):
                 continue
             ret.append(channel)
     return ret

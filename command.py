@@ -305,7 +305,7 @@ class StartCommand(Command):
                 print("ClusterServer情報取得成功.")
 
                 # サーバ情報を監視サーバ毎に格納
-                cluster_servers_info_dict = jsons.load(cluster_servers_info_json)
+                cluster_servers_info_dict = jsons.loads(cluster_servers_info_json)
                 servers_info = {}
 
                 for server_name in watch_server_names:
@@ -337,7 +337,7 @@ class StartCommand(Command):
                         continue
                     print("ServerPlayer情報取得成功.")
 
-                    players = jsons.load(server_player_info_json)
+                    players = jsons.loads(server_player_info_json)
                     player_sbn_count = 0
                     last_server_info = None
                     if len(self.config.last_servers_info) != 0 and server_name in self.config.last_servers_info:
@@ -581,18 +581,20 @@ class SetWatchWorldCommand(Command):
         super().__init__(config, "/set world", True)
 
     def usage(self):
-        msg = "/set world [NA or EU] : 監視ワールドを設定します."
+        msg = "/set world [1-4] : 監視ワールドを設定します.\n設定は数字で入力してください\n(1: NA PvE, 2: NA PvP, 3: EU PvE, 4: EU PvP)"
         return msg
 
     def valid_custom(self, message, args):
-        if not args:
-            return "NA か EU を設定してください."
-        if args != "NA" and args != "EU":
-            return "NA か EU を設定してください."
+        if not args or not args.isdecimal():
+            return "1から4の数字を設定してください."
+        int_val = int(args)
+        if int_val < 1 and 4 < int_val:
+            return "1から4の数字を設定してください."
 
     async def execute_cmd(self, message, args):
-        self.config.watch_interval = args
-        msg = "監視ワールドを{}秒に設定しました.".format(args)
+        int_val = int(args)
+        self.config.watch_world = int_val
+        msg = "監視ワールドを {} に設定しました.".format(utils.get_value("id", int_val, "name", consts.CLUSTERS))
         await self.send_message(message.channel, msg)
         return True
 
