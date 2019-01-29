@@ -111,7 +111,7 @@ class Command:
         if not message and not message.content:
             print("【エラー】Discordからコマンドが受け取れません. 再度入力してください.")
             return False
-        if self.is_cmd_help(message):
+        if self.is_cmd_help(message.content):
             await self.send_message(message.channel, self.usage())
             print(self.cmd + " show help.")
             return False
@@ -462,7 +462,7 @@ class DelBlackListCommand(Command):
     """
 
     def __init__(self, config):
-        super().__init__(config, "/dl bl", True)
+        super().__init__(config, "/del bl", True)
 
     def usage(self):
         msg = "/del bl [プレイヤー名] : ブラックリストからプレイヤーを削除します."
