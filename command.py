@@ -247,7 +247,7 @@ class HelpCommand(AllCommand):
         msg = "/? : ヘルプを表示します. /start /? のように入力するとコマンドのヘルプを表示します."
         return msg
 
-    async def execute(self, message, args):
+    async def execute_cmd(self, message, args):
         ret = []
         ret.append(self.usage())
         for cmd in self.cmd_list:
@@ -273,19 +273,23 @@ class StartCommand(Command):
         if self.config.is_watch_started:
             return "監視継続します."
 
-    async def execute(self, message):
+    async def execute_cmd(self, message, args):
         msg = "監視開始."
         await self.send_message(message.channel, msg)
 
         self.config.is_watch_started = True
         while self.config.is_watch_started:
             try:
+                watch_server_names = utils.get_watch_server_names(self.config.client)
+
+                # サーバ情報取得
                 try:
-                    print('WebServiceに接続開始.')
-                    atlas_grids_json = requests.get(self.config.url).text
-                    print("WebService接続成功.")
-                    if not atlas_grids_json:
-                        msg = '【エラー】jsonが空. 再度実行.'
+                    print('ClusterServer情報取得開始.')
+                    cluster_servers_info_json = requests.get(
+                        consts.URL_CLUSTER_SERVER.format(self.config.watch_world)).text
+                    print("ClusterServer情報取得完了.")
+                    if not cluster_servers_info_json:
+                        msg = '【エラー】サーバ情報jsonが空. 再度実行.'
                         print(msg)
                         await self.send_message(message.channel, msg)
                         await asyncio.sleep(self.config.watch_interval)
@@ -293,20 +297,47 @@ class StartCommand(Command):
                 except Exception as e:
                     with open(consts.LOG_FILE, 'a') as f:
                         traceback.print_exc(file=f)
-                    msg = '【エラー】WebService接続失敗. サーバダウンかも. 再度実行.'
+                    msg = '【エラー】サーバ情報取得失敗. サーバダウンかも. 再度実行.'
                     print(msg)
                     await self.send_message(message.channel, msg)
                     await asyncio.sleep(self.config.watch_interval)
                     continue
+                print("ClusterServer情報取得成功.")
 
-                print('データ取得成功.')
-                grids_dict = jsons.loads(atlas_grids_json)
-
-                # サーバ情報収集
+                # サーバ情報を監視サーバ毎に格納
+                cluster_servers_info_dict = jsons.load(cluster_servers_info_json)
                 servers_info = {}
-                for grid in grids_dict["grids"]:
-                    server_name = grid["grid"]
-                    player_count = len(grid["players"])
+
+                for server_name in watch_server_names:
+                    server_id = utils.get_server_id(self.config.watch_world, server_name)
+                    cluster_server_info = utils.get_object("id", server_id, cluster_servers_info_dict)
+                    if not cluster_server_info:
+                        continue
+                    player_count = cluster_server_info["player_count"]
+
+                    # 監視サーバ毎プレイヤー情報取得
+                    try:
+                        print('ServerPlayer情報取得開始.')
+                        server_player_info_json = requests.get(
+                            consts.URL_SERVER_PLAYER.format(server_id)).text
+                        print("ServerPlayer情報取得完了.")
+                        if not server_player_info_json:
+                            msg = '【エラー】プレイヤー情報jsonが空. 再度実行.'
+                            print(msg)
+                            await self.send_message(message.channel, msg)
+                            await asyncio.sleep(self.config.watch_interval)
+                            continue
+                    except Exception as e:
+                        with open(consts.LOG_FILE, 'a') as f:
+                            traceback.print_exc(file=f)
+                        msg = '【エラー】プレイヤー情報取得失敗. サーバダウンかも. 再度実行.'
+                        print(msg)
+                        await self.send_message(message.channel, msg)
+                        await asyncio.sleep(self.config.watch_interval)
+                        continue
+                    print("ServerPlayer情報取得成功.")
+
+                    players = jsons.load(server_player_info_json)
                     player_sbn_count = 0
                     last_server_info = None
                     if len(self.config.last_servers_info) != 0 and server_name in self.config.last_servers_info:
@@ -315,12 +346,11 @@ class StartCommand(Command):
                         last_player_count = last_server_info["player_count"]
                         if last_player_count is not None:
                             player_sbn_count = player_count - last_player_count
-                    players = grid["players"]
                     blacklist_players = []
-                    for bl_player in blacklist_players:
+                    for bl_player in self.config.blacklist:
                         for player in players:
                             player_name = player["name"]
-                            if player_name.upper().find(bl_player.upper()) == -1:
+                            if not player_name or player_name.upper().find(bl_player.upper()) == -1:
                                 continue
                             blacklist_players.append(player)
 
@@ -480,7 +510,7 @@ class AddServerCommand(Command):
         return msg
 
     def valid_custom(self, message, args):
-        if not args or args.upper() not in consts.SERVER_NAMES:
+        if not args or not utils.exists_server_name(args.upper()):
             return "サーバー名にA1～O15を設定してください."
         if utils.exists_channel(message.server, args):
             return "対象サーバは既に監視対象です."
@@ -507,7 +537,7 @@ class DelServerCommand(Command):
         return msg
 
     def valid_custom(self, message, args):
-        if not args or len(args) != 2 or args.upper() not in consts.SERVER_NAMES:
+        if not args or len(args) != 2 or not utils.exists_server_name(args.upper()):
             return "サーバー名にA1～O15を設定してください."
         if not utils.exists_channel(message.server, args):
             return "対象サーバは監視対象ではありません."

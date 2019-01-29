@@ -19,8 +19,7 @@ class ASWDConfig:
         self.__config = configparser.ConfigParser()
         self.__config.read(consts.CONFIG_FILE_NAME)
         self.__token = self.config.get(consts.SECTION_NAME, consts.KEY_TOKEN)
-        self.__watch_world = self.config.get(consts.SECTION_NAME, consts.KEY_WATCH_WORLD)
-        self.__url = consts.URL_NA if "NA" == self.watch_world else consts.URL_EU
+        self.__watch_world = int(self.config.get(consts.SECTION_NAME, consts.KEY_WATCH_WORLD))
         self.__watch_interval = int(self.config.get(consts.SECTION_NAME, consts.KEY_WATCH_INTERVAL))
         self.__player_sbn_count = int(self.config.get(consts.SECTION_NAME, consts.KEY_PLAYER_SBN_COUNT))
         self.__blacklist = self.config.get(consts.SECTION_NAME, consts.KEY_BLACKLIST).split(",")
@@ -44,12 +43,7 @@ class ASWDConfig:
     @watch_world.setter
     def watch_world(self, watch_world):
         self.__watch_world = watch_world
-        self.__url = consts.URL_NA if "NA" == watch_world else consts.URL_EU
         self.write()
-
-    @property
-    def url(self):
-        return self.__url
 
     @property
     def watch_interval(self):
@@ -134,7 +128,7 @@ class ASWDConfig:
         configw = configparser.ConfigParser()
         configw.add_section(consts.SECTION_NAME)
         configw.set(consts.SECTION_NAME, consts.KEY_TOKEN, self.token)
-        configw.set(consts.SECTION_NAME, consts.KEY_WATCH_WORLD, self.watch_world)
+        configw.set(consts.SECTION_NAME, consts.KEY_WATCH_WORLD, str(self.watch_world))
         configw.set(consts.SECTION_NAME, consts.KEY_WATCH_INTERVAL, str(self.watch_interval))
         configw.set(consts.SECTION_NAME, consts.KEY_PLAYER_SBN_COUNT, str(self.player_sbn_count))
         configw.set(consts.SECTION_NAME, consts.KEY_BLACKLIST, ",".join(self.blacklist))
