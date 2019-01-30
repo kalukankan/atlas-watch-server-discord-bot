@@ -349,7 +349,7 @@ class StartCommand(Command):
                     blacklist_players = []
                     for bl_player in self.config.blacklist:
                         for player in players:
-                            player_name = player["name"]
+                            player_name = str(player["name"])
                             if not player_name or player_name.upper().find(bl_player.upper()) == -1:
                                 continue
                             blacklist_players.append(player)
