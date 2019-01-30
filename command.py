@@ -347,12 +347,15 @@ class StartCommand(Command):
                         if last_player_count is not None:
                             player_sbn_count = player_count - last_player_count
                     blacklist_players = []
-                    for bl_player in self.config.blacklist:
-                        for player in players:
-                            player_name = str(player["name"])
-                            if not player_name or player_name.upper().find(bl_player.upper()) == -1:
-                                continue
-                            blacklist_players.append(player)
+                    if not players or "data" in players:
+                        print("【WARN 】プレイヤー情報なし.")
+                    else:
+                        for bl_player in self.config.blacklist:
+                            for player in players:
+                                player_name = str(player["name"])
+                                if not player_name or player_name.upper().find(bl_player.upper()) == -1:
+                                    continue
+                                blacklist_players.append(player)
 
                     servers_info[server_name] = {
                         "server_name": server_name,
