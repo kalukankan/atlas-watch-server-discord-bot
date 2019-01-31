@@ -344,8 +344,7 @@ class StartCommand(Command):
                         last_server_info = self.config.last_servers_info[server_name]
                     if last_server_info is not None:
                         last_player_count = last_server_info["player_count"]
-                        if last_player_count is not None:
-                            player_sbn_count = player_count - last_player_count
+                        player_sbn_count = player_count - last_player_count if last_player_count is not None and 0 < last_player_count else -1
                     blacklist_players = []
                     if not players or "data" in players:
                         print("【WARN 】プレイヤー情報なし.")
