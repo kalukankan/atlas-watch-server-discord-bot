@@ -286,6 +286,8 @@ class StartCommand(Command):
         await self.send_message(message.channel, msg)
 
         self.config.is_watch_started = True
+        self.config.last_servers_info = {}
+        self.config.blacklist_notice_server_names.clear()
         while self.config.is_watch_started:
             try:
                 watch_server_names = Utils.get_watch_server_names(self.config.client)
