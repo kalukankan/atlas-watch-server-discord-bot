@@ -252,7 +252,7 @@ class HelpCommand(AllCommand):
         super().__init__(config, "/?", False, ret)
 
     def usage(self):
-        msg = "/? : ヘルプを表示します. /start /? のように入力するとコマンドのヘルプを表示します."
+        msg = "**/?** : ヘルプを表示します.\n/start /? のように入力するとコマンドのヘルプを表示します."
         return msg
 
     async def execute_cmd(self, message, args):
@@ -274,7 +274,7 @@ class StartCommand(Command):
         super().__init__(config, "/start", False)
 
     def usage(self):
-        msg = "/start : 監視を開始します."
+        msg = "**/start** : 監視を開始します."
         return msg
 
     def valid_custom(self, message, args):
@@ -434,7 +434,7 @@ class StopCommand(Command):
         super().__init__(config, "/stop", False)
 
     def usage(self):
-        msg = "/stop : 監視を終了します."
+        msg = "**/stop** : 監視を終了します."
         return msg
 
     async def execute_cmd(self, message, args):
@@ -452,7 +452,9 @@ class AddBlackListCommand(Command):
         super().__init__(config, "/add bl", True)
 
     def usage(self):
-        msg = "/add bl [プレイヤー名] : ブラックリストにプレイヤーを追加します."
+        msg = "**/add bl** *[プレイヤー名]* : ブラックリストにプレイヤーを追加します." \
+              "\n大文字小文字問わず判定します." \
+              "\nあいまい検索(例: bcd を追加した場合、abcdeというプレイヤーがサーバに入ってきた場合通知します)"
         return msg
 
     def valid_custom(self, message, args):
@@ -475,7 +477,7 @@ class DelBlackListCommand(Command):
         super().__init__(config, "/del bl", True)
 
     def usage(self):
-        msg = "/del bl [プレイヤー名] : ブラックリストからプレイヤーを削除します."
+        msg = "**/del bl** *[プレイヤー名]* : ブラックリストからプレイヤーを削除します."
         return msg
 
     def valid_custom(self, message, args):
@@ -498,7 +500,7 @@ class ListBlackListCommand(Command):
         super().__init__(config, "/list bl", False)
 
     def usage(self):
-        msg = "/list bl : ブラックリストの一覧を表示します."
+        msg = "**/list bl** : ブラックリストの一覧を表示します."
         return msg
 
     async def execute_cmd(self, message, args):
@@ -516,7 +518,7 @@ class AddServerCommand(Command):
         super().__init__(config, "/add server", True)
 
     def usage(self):
-        msg = "/add server [サーバー名(A1-O15)] : Discordにサーバー監視報告用のチャンネルを追加します."
+        msg = "**/add server** *[サーバー名(A1-O15)]* : Discordにサーバー監視報告用のチャンネルを追加します."
         return msg
 
     def valid_custom(self, message, args):
@@ -543,7 +545,7 @@ class DelServerCommand(Command):
         super().__init__(config, "/del server", True)
 
     def usage(self):
-        msg = "/del server [サーバー名(A1-O15)] : Discordのサーバー監視報告用のチャンネルを削除します."
+        msg = "**/del server** *[サーバー名(A1-O15)]* : Discordのサーバー監視報告用のチャンネルを削除します."
         return msg
 
     def valid_custom(self, message, args):
@@ -571,7 +573,7 @@ class StatusCommand(Command):
         super().__init__(config, "/status", False)
 
     def usage(self):
-        msg = "/status : 設定値など現在の状態を表示します."
+        msg = "**/status** : 設定値など現在の状態を表示します."
         return msg
 
     async def execute_cmd(self, message, args):
@@ -600,7 +602,9 @@ class SetWatchWorldCommand(Command):
         super().__init__(config, "/set world", True)
 
     def usage(self):
-        msg = "/set world [1-4] : 監視ワールドを設定します.\n設定は数字で入力してください\n(1: NA PvE, 2: NA PvP, 3: EU PvE, 4: EU PvP)"
+        msg = "**/set world** *[1-4]* : 監視ワールドを設定します." \
+              "\n設定は数字で入力してください" \
+              "\n(1: NA PvE, 2: NA PvP, 3: EU PvE, 4: EU PvP)"
         return msg
 
     def valid_custom(self, message, args):
@@ -627,7 +631,7 @@ class SetWatchIntervalCommand(Command):
         super().__init__(config, "/set interval", True)
 
     def usage(self):
-        msg = "/set interval : 監視間隔(秒)を設定します."
+        msg = "**/set interval** *[秒]* : 監視間隔(秒)を設定します."
         return msg
 
     def valid_custom(self, message, args):
@@ -657,7 +661,7 @@ class SetPlayerSbnCountCommand(Command):
         super().__init__(config, "/set player_count", True)
 
     def usage(self):
-        msg = "/set player_count : 通知対象プレイヤー増加数を設定します."
+        msg = "**/set player_count *[人数]* : サーバのプレイヤーが一気に増加した場合に通知を行う際の閾値を設定します."
         return msg
 
     def valid_custom(self, message, args):
@@ -686,7 +690,7 @@ class FuckYeahCommand(Command):
         super().__init__(config, "/fuck", True)
 
     def usage(self):
-        msg = "/fuck xxx : Fuck YEAH !!"
+        msg = "**/fuck** *xxx* : Fuck YEAH !!"
         return msg
 
     async def execute_cmd(self, message, args):
