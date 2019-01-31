@@ -388,19 +388,19 @@ class StartCommand(Command):
 
                         # 警告メッセージ(人数急増)
                         if self.config.player_sbn_count <= player_sbn_count:
-                            msg = "@everyone サーバ人数急増. 閾値:{} 増加人数:{}".format(self.config.player_sbn_count, player_sbn_count)
+                            msg = "@everyone サーバが {}人増えて {}人に急増. 敵襲か？".format(player_sbn_count, player_count)
                             await self.send_message(tgt_channel, msg)
 
                         # 警告メッセージ(ブラックリスト対象の侵入)
                         if len(blacklist_players) > 0:
                             if server_name not in self.config.blacklist_notice_server_names:
-                                msg = "@everyone ブラックリスト対象侵入. 対象:{}".format(blacklist_players)
+                                msg = "@everyone ブラックリストの{}がやってきたぞ.".format(blacklist_players.split(","))
                                 await self.send_message(tgt_channel, msg)
                                 self.config.blacklist_notice_server_names.append(server_name)
 
                         # 通常メッセージ(ブラックリスト対象者0になった)
                         if len(blacklist_players) == 0 and server_name in self.config.blacklist_notice_server_names:
-                            msg = "ブラックリスト対象はいなくなりました."
+                            msg = "ブラックリストのやつらはどこかへ行ったようだ."
                             await self.send_message(tgt_channel, msg)
                             self.config.blacklist_notice_server_names.remove(server_name)
 
