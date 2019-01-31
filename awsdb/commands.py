@@ -4,17 +4,19 @@ import traceback
 
 import jsons
 import requests
-from discord import ChannelType
+from discord import ChannelType, Client, Channel, Server, Message
 from datetime import datetime
 
-import consts
-import utils
+from awsdb import consts
+from awsdb.utils import ASWDConfig
+from awsdb.utils import Utils
 
 
 class Command:
     """
     Botのコマンドクラス.
     """
+    __config: ASWDConfig
     __has_args: bool
     __cmd: str
 
@@ -153,13 +155,15 @@ class Command:
         :return: 処理結果
         :rtype: bool
         """
-        await utils.send_message(self.config.client, channel, msg)
+        await Utils.send_message(self.config.client, channel, msg)
 
 
 class AllCommand(Command):
     """
     全コマンドを扱うコマンドクラス
     """
+
+    __cmd_list: list
 
     @property
     def cmd_list(self):
@@ -175,6 +179,10 @@ class CommandManager:
     コマンド管理クラス.
     コマンド実行はこのクラスの execute() にメッセージを食わせる.
     """
+
+    __config: ASWDConfig
+    __cmd_list: list
+    __help_cmd: Command
 
     def __init__(self, config):
         """
@@ -224,7 +232,7 @@ class CommandManager:
         if not call_cmd:
             # コマンドが存在しない場合ヘルプ表示
             msg = "コマンドが正しくありません.\n" + self.__help_cmd.usage()
-            await utils.send_message(self.__config.client, message.channel, msg)
+            await Utils.send_message(self.__config.client, message.channel, msg)
             return False
 
         return await call_cmd.execute(message)
@@ -280,7 +288,7 @@ class StartCommand(Command):
         self.config.is_watch_started = True
         while self.config.is_watch_started:
             try:
-                watch_server_names = utils.get_watch_server_names(self.config.client)
+                watch_server_names = Utils.get_watch_server_names(self.config.client)
 
                 # サーバ情報取得
                 try:
@@ -309,8 +317,8 @@ class StartCommand(Command):
                 servers_info = {}
 
                 for server_name in watch_server_names:
-                    server_id = utils.get_server_id(self.config.watch_world, server_name)
-                    cluster_server_info = utils.get_object("id", server_id, cluster_servers_info_dict)
+                    server_id = Utils.get_server_id(self.config.watch_world, server_name)
+                    cluster_server_info = Utils.get_object("id", server_id, cluster_servers_info_dict)
                     if not cluster_server_info:
                         continue
                     player_count = cluster_server_info["player_count"]
@@ -354,7 +362,7 @@ class StartCommand(Command):
                                 player_name = str(player["name"])
                                 if not player_name or player_name.upper().find(bl_player.upper()) == -1:
                                     continue
-                                blacklist_players.append(player)
+                                blacklist_players.append(str(player["name"]))
 
                     servers_info[server_name] = {
                         "server_name": server_name,
@@ -365,7 +373,7 @@ class StartCommand(Command):
 
                 # サーバ情報を元に通知
                 timestr = datetime.now().strftime("%m/%d %H:%M")
-                tgt_channels = utils.get_channels(self.config.client)
+                tgt_channels = Utils.get_channels(self.config.client)
                 print("get_channels end. tgt_channels.len=", len(tgt_channels) > 0)
                 if len(tgt_channels) > 0:
                     for tgt_channel in tgt_channels:
@@ -394,7 +402,7 @@ class StartCommand(Command):
                         # 警告メッセージ(ブラックリスト対象の侵入)
                         if len(blacklist_players) > 0:
                             if server_name not in self.config.blacklist_notice_server_names:
-                                msg = "@everyone ブラックリストの{}がやってきたぞ.".format(blacklist_players.split(","))
+                                msg = "@everyone ブラックリストの {} がやってきたぞ.".format(','.join(blacklist_players))
                                 await self.send_message(tgt_channel, msg)
                                 self.config.blacklist_notice_server_names.append(server_name)
 
@@ -512,9 +520,9 @@ class AddServerCommand(Command):
         return msg
 
     def valid_custom(self, message, args):
-        if not args or not utils.exists_server_name(args.upper()):
+        if not args or not Utils.exists_server_name(args.upper()):
             return "サーバー名にA1～O15を設定してください."
-        if utils.exists_channel(message.server, args):
+        if Utils.exists_channel(message.server, args):
             return "対象サーバは既に監視対象です."
 
     async def execute_cmd(self, message, args):
@@ -539,14 +547,14 @@ class DelServerCommand(Command):
         return msg
 
     def valid_custom(self, message, args):
-        if not args or len(args) != 2 or not utils.exists_server_name(args.upper()):
+        if not args or len(args) != 2 or not Utils.exists_server_name(args.upper()):
             return "サーバー名にA1～O15を設定してください."
-        if not utils.exists_channel(message.server, args):
+        if not Utils.exists_channel(message.server, args):
             return "対象サーバは監視対象ではありません."
 
     async def execute_cmd(self, message, args):
         print("サーバ監視報告チャンネル削除. name={}".format(args.upper()))
-        channel = utils.exists_channel(message.server, args)
+        channel = Utils.exists_channel(message.server, args)
         await self.config.client.delete_channel(channel)
         print("サーバ監視報告チャンネル作成完了.")
         msg = "{}チャンネル削除.".format(args.upper())
@@ -570,7 +578,7 @@ class StatusCommand(Command):
         msg_started = "監視中" if self.config.is_watch_started else "監視していません"
         msg = "監視状態:{}\n監視ワールド:{} {}\n監視間隔(秒):{}\n通知対象プレイヤー増加数:{}\nブラックリスト:{}\nブラックリスト侵入中サーバ:{}".format(msg_started,
                                                                                                         self.config.watch_world,
-                                                                                                        utils.get_value(
+                                                                                                        Utils.get_value(
                                                                                                             "id",
                                                                                                             self.config.watch_world,
                                                                                                             "name",
@@ -605,7 +613,7 @@ class SetWatchWorldCommand(Command):
     async def execute_cmd(self, message, args):
         int_val = int(args)
         self.config.watch_world = int_val
-        msg = "監視ワールドを {} に設定しました.".format(utils.get_value("id", int_val, "name", consts.CLUSTERS))
+        msg = "監視ワールドを {} に設定しました.".format(Utils.get_value("id", int_val, "name", consts.CLUSTERS))
         await self.send_message(message.channel, msg)
         return True
 
