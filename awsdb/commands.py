@@ -391,7 +391,7 @@ class StartCommand(Command):
                         blacklist_players = server_info["blacklist_players"]
 
                         # 定例メッセージ送信
-                        msg = "{}　{}　人数:{}　BL対象者:{}".format(timestr, server_name, player_count, blacklist_players)
+                        msg = "{}　{}　人数:{}　BL:{}人 {}".format(timestr, server_name, player_count, len(blacklist_players), blacklist_players)
                         await self.send_message(tgt_channel, msg)
 
                         # 警告メッセージ(人数急増)
@@ -402,7 +402,7 @@ class StartCommand(Command):
                         # 警告メッセージ(ブラックリスト対象の侵入)
                         if len(blacklist_players) > 0:
                             if server_name not in self.config.blacklist_notice_server_names:
-                                msg = "@everyone ブラックリストの {} がやってきたぞ.".format(','.join(blacklist_players))
+                                msg = "@everyone ブラックリストの {} がやってきたぞ.".format(', '.join(blacklist_players))
                                 await self.send_message(tgt_channel, msg)
                                 self.config.blacklist_notice_server_names.append(server_name)
 
