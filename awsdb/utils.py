@@ -13,7 +13,7 @@ class ASWDConfig:
 
     def __init__(self, client_val):
         self.__config = configparser.ConfigParser()
-        self.__config.read(consts.CONFIG_FILE_NAME)
+        self.__config.read(consts.CONFIG_FILE_NAME, encoding='utf-8')
         self.__token = self.config.get(consts.SECTION_NAME, consts.KEY_TOKEN)
         self.__watch_world = int(self.config.get(consts.SECTION_NAME, consts.KEY_WATCH_WORLD))
         self.__watch_interval = int(self.config.get(consts.SECTION_NAME, consts.KEY_WATCH_INTERVAL))
@@ -128,7 +128,7 @@ class ASWDConfig:
         configw.set(consts.SECTION_NAME, consts.KEY_WATCH_INTERVAL, str(self.watch_interval))
         configw.set(consts.SECTION_NAME, consts.KEY_PLAYER_SBN_COUNT, str(self.player_sbn_count))
         configw.set(consts.SECTION_NAME, consts.KEY_BLACKLIST, ",".join(self.blacklist))
-        with open(consts.CONFIG_FILE_NAME, 'w') as configfile:
+        with open(consts.CONFIG_FILE_NAME, 'w', encoding='utf-8') as configfile:
             configw.write(configfile)
 
 
