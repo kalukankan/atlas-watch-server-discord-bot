@@ -196,6 +196,9 @@ class CommandManager:
         self.__cmd_list = [
             StartCommand(config),
             StopCommand(config),
+            AddEnemyCommand(config),
+            DelEnemyCommand(config),
+            ListEnemyCommand(config),
             AddBlackListCommand(config),
             DelBlackListCommand(config),
             ListBlackListCommand(config),
@@ -252,14 +255,15 @@ class HelpCommand(AllCommand):
         super().__init__(config, "/?", False, ret)
 
     def usage(self):
-        msg = "**/?** : ヘルプを表示します.\n/start /? のように入力するとコマンドのヘルプを表示します."
+        msg = "`/?`" \
+              "\nヘルプを表示します.\n/start /? のように入力するとコマンドのヘルプを表示します."
         return msg
 
     async def execute_cmd(self, message, args):
         ret = []
-        ret.append(self.usage())
+        ret.append(self.usage() + "\n")
         for cmd in self.cmd_list:
-            ret.append(cmd.usage())
+            ret.append(cmd.usage() + "\n")
         msg = "\n".join(ret)
         await self.send_message(message.channel, msg)
         return True
@@ -274,7 +278,10 @@ class StartCommand(Command):
         super().__init__(config, "/start", False)
 
     def usage(self):
-        msg = "**/start** : 監視を開始します."
+        msg = "`/start`" \
+              "\nサーバの監視を開始します." \
+              "\n指定時間ごとにサーバやプレイヤー情報を取得して各報告用チャンネルに出力し、" \
+              "プレイヤーが急増した場合や敵プレイヤーが監視サーバに侵入した場合に通知します."
         return msg
 
     def valid_custom(self, message, args):
@@ -287,7 +294,7 @@ class StartCommand(Command):
 
         self.config.is_watch_started = True
         self.config.last_servers_info = {}
-        self.config.blacklist_notice_server_names.clear()
+        self.config.enemy_notice_server_names.clear()
         while self.config.is_watch_started:
             try:
                 watch_server_names = Utils.get_watch_server_names(self.config.client)
@@ -355,22 +362,22 @@ class StartCommand(Command):
                     if last_server_info is not None:
                         last_player_count = last_server_info["player_count"]
                         player_sbn_count = player_count - last_player_count if last_player_count is not None and 0 < last_player_count else -1
-                    blacklist_players = []
+                    enemy_players = {}
                     if not players or "data" in players:
                         print("【WARN 】プレイヤー情報なし.")
                     else:
-                        for bl_player in self.config.blacklist:
+                        for enemy in self.config.enemy_list:
                             for player in players:
                                 player_name = str(player["name"])
-                                if not player_name or player_name.upper().find(bl_player.upper()) == -1:
+                                if not player_name or player_name.upper().find(enemy.upper()) == -1:
                                     continue
-                                blacklist_players.append(str(player["name"]))
+                                enemy_players.append("{}({})".format(player["name"], self.config.enemy_list[enemy]))
 
                     servers_info[server_name] = {
                         "server_name": server_name,
                         'player_count': player_count,
                         "player_sbn_count": player_sbn_count,
-                        "blacklist_players": blacklist_players
+                        "enemy_players": enemy_players
                     }
 
                 # サーバ情報を元に通知
@@ -390,10 +397,11 @@ class StartCommand(Command):
                         server_name = server_info["server_name"]
                         player_count = server_info["player_count"]
                         player_sbn_count = server_info["player_sbn_count"]
-                        blacklist_players = server_info["blacklist_players"]
+                        enemy_players = server_info["enemy_players"]
 
                         # 定例メッセージ送信
-                        msg = "{}　{}　人数:{}　BL:{}人 {}".format(timestr, server_name, player_count, len(blacklist_players), blacklist_players)
+                        msg = "{}　{}　人数:{}　敵:{}人 {}".format(timestr, server_name, player_count, len(enemy_players),
+                                                            enemy_players)
                         await self.send_message(tgt_channel, msg)
 
                         # 警告メッセージ(人数急増)
@@ -402,17 +410,17 @@ class StartCommand(Command):
                             await self.send_message(tgt_channel, msg)
 
                         # 警告メッセージ(ブラックリスト対象の侵入)
-                        if len(blacklist_players) > 0:
-                            if server_name not in self.config.blacklist_notice_server_names:
-                                msg = "@everyone ブラックリストの {} がやってきたぞ.".format(', '.join(blacklist_players))
+                        if len(enemy_players) > 0:
+                            if server_name not in self.config.enemy_notice_server_names:
+                                msg = "@everyone ブラックリストの {} がやってきたぞ.".format(', '.join(enemy_players))
                                 await self.send_message(tgt_channel, msg)
-                                self.config.blacklist_notice_server_names.append(server_name)
+                                self.config.enemy_notice_server_names.append(server_name)
 
                         # 通常メッセージ(ブラックリスト対象者0になった)
-                        if len(blacklist_players) == 0 and server_name in self.config.blacklist_notice_server_names:
+                        if len(enemy_players) == 0 and server_name in self.config.enemy_notice_server_names:
                             msg = "ブラックリストのやつらはどこかへ行ったようだ."
                             await self.send_message(tgt_channel, msg)
-                            self.config.blacklist_notice_server_names.remove(server_name)
+                            self.config.enemy_notice_server_names.remove(server_name)
 
                 # 今回取得したサーバ情報を保持
                 self.config.last_servers_info = servers_info
@@ -436,7 +444,8 @@ class StopCommand(Command):
         super().__init__(config, "/stop", False)
 
     def usage(self):
-        msg = "**/stop** : 監視を終了します."
+        msg = "`/stop`" \
+              "\nサーバの監視を終了します."
         return msg
 
     async def execute_cmd(self, message, args):
@@ -445,70 +454,156 @@ class StopCommand(Command):
         return True
 
 
-class AddBlackListCommand(Command):
+class AddEnemyCommand(Command):
     """
-    ブラックリスト追加コマンド.
+    敵プレイヤー追加コマンド.
+    """
+
+    def __init__(self, config, cmd=None, has_args=False):
+        super().__init__(config, cmd if cmd else "/add enemy", has_args if has_args else True)
+
+    def usage(self):
+        msg = "`/add enemy [プレイヤー名] [カンパニー名]`" \
+              "\n敵プレイヤーを追加します." \
+              "\n追加した敵プレイヤーは監視中のサーバに現れた場合、通知します." \
+              "\nカンパニー名は省略可能です." \
+              "\n名前やカンパニー名に空白が存在する場合、ダブルクォートで囲んでください.(例: /add enemy \"player name\" \"company name\")" \
+              "\n敵プレイヤー名は大文字小文字問わずあいまい検索で判定します.(例: Bcd を追加した場合、abcde というプレイヤーに一致します.)"
+        return msg
+
+    def valid_custom(self, message, args):
+        if not args:
+            return "プレイヤー名を正しく入力してください."
+
+    async def execute_cmd(self, message, args):
+        arg_list = self.split_args(args)
+        pname = arg_list[0] if len(arg_list) >= 1 else ""
+        cname = arg_list[1] if len(arg_list) >= 2 else ""
+        self.config.add_enemy(pname, cname)
+        msg = "敵プレイヤーに追加しました."
+        await self.send_message(message.channel, msg)
+        return True
+
+    def split_args(self, args):
+        """
+        引数を分割する.
+        :param args: 引数
+        :type args: str
+        :return: 分割した引数
+        :rtype: list of str
+        """
+        ret = []
+        if args.find("\"") >= 0:
+            arg = ""
+            in_dq = False
+            for s in args:
+                if s == " " and not in_dq:
+                    ret.append(arg.strip())
+                    arg = ""
+                    continue
+                if s == "\"":
+                    in_dq = not in_dq
+                    continue
+                arg += s
+            if arg:
+                ret.append(arg.strip())
+        else:
+            ret = args.split(" ")
+            if not ret:
+                return None
+        return ret
+
+
+class AddBlackListCommand(AddEnemyCommand):
+    """
+    敵プレイヤー追加コマンド.
+    今までのバージョンと同じように/add blで登録できるようにする.
     """
 
     def __init__(self, config):
         super().__init__(config, "/add bl", True)
 
     def usage(self):
-        msg = "**/add bl** *[プレイヤー名]* : ブラックリストにプレイヤーを追加します." \
-              "\n大文字小文字問わず判定します." \
-              "\nあいまい検索(例: bcd を追加した場合、abcdeというプレイヤーがサーバに入ってきた場合通知します)"
+        msg = "`/add bl [プレイヤー名] [カンパニー名]`" \
+              "\n敵プレイヤーを追加します." \
+              "\n/add enemy と同様の処理を行います."
+        return msg
+
+
+class DelEnemyCommand(Command):
+    """
+    敵プレイヤー削除コマンド.
+    """
+
+    def __init__(self, config, cmd=None, has_args=False):
+        super().__init__(config, cmd if cmd else "/del enemy", has_args if has_args else True)
+
+    def usage(self):
+        msg = "`/del enemy [プレイヤー名] [カンパニー名]`" \
+              "\n敵プレイヤーを削除します."
         return msg
 
     def valid_custom(self, message, args):
         if not args:
             return "プレイヤー名を正しく入力してください."
+        if args not in self.config.enemy_list:
+            return "敵プレイヤーは存在しません."
 
     async def execute_cmd(self, message, args):
-        self.config.add_blacklist(args)
-        msg = "ブラックリストに追加しました."
+        self.config.del_enemy(args)
+        msg = "敵プレイヤーを削除しました."
         await self.send_message(message.channel, msg)
         return True
 
 
-class DelBlackListCommand(Command):
+class DelBlackListCommand(DelEnemyCommand):
     """
-    ブラックリスト削除コマンド.
+    敵プレイヤー削除コマンド.
+    今までのバージョンと同じように/del bl で削除できるようにする.
     """
 
     def __init__(self, config):
         super().__init__(config, "/del bl", True)
 
     def usage(self):
-        msg = "**/del bl** *[プレイヤー名]* : ブラックリストからプレイヤーを削除します."
+        msg = "`/del bl [プレイヤー名] [カンパニー名]`" \
+              "\n敵プレイヤーを削除します." \
+              "\n/del enemy と同様の処理を行います."
         return msg
 
-    def valid_custom(self, message, args):
-        if not args:
-            return "プレイヤー名を正しく入力してください."
 
-    async def execute_cmd(self, message, args):
-        self.config.del_blacklist(args)
-        msg = "ブラックリストから削除しました."
-        await self.send_message(message.channel, msg)
-        return True
-
-
-class ListBlackListCommand(Command):
+class ListEnemyCommand(Command):
     """
-    ブラックリスト一覧表示コマンド.
+    敵プレイヤー一覧表示コマンド.
     """
 
-    def __init__(self, config):
-        super().__init__(config, "/list bl", False)
+    def __init__(self, config, cmd=None, has_args=False):
+        super().__init__(config, cmd if cmd else "/list enemy", has_args if has_args else False)
 
     def usage(self):
-        msg = "**/list bl** : ブラックリストの一覧を表示します."
+        msg = "`/list enemy`" \
+              "\n敵プレイヤーの一覧を表示します."
         return msg
 
     async def execute_cmd(self, message, args):
-        msg = "ブラックリスト: {}".format(self.config.blacklist)
+        msg = "敵プレイヤー: {}".format(self.config.list_enemy())
         await self.send_message(message.channel, msg)
         return True
+
+
+class ListBlackListCommand(ListEnemyCommand):
+    """
+    敵プレイヤー一覧表示コマンド.
+    """
+
+    def __init__(self, config, cmd=None, has_args=False):
+        super().__init__(config, cmd if cmd else "/list bl", has_args if has_args else False)
+
+    def usage(self):
+        msg = "`/list bl`" \
+              "\n敵プレイヤーの一覧を表示します."\
+              "\n/list enemy と同様の処理を行います."
+        return msg
 
 
 class AddServerCommand(Command):
@@ -520,7 +615,9 @@ class AddServerCommand(Command):
         super().__init__(config, "/add server", True)
 
     def usage(self):
-        msg = "**/add server** *[サーバー名(A1-O15)]* : Discordにサーバー監視報告用のチャンネルを追加します."
+        msg = "`/add server [サーバー名(A1-O15)]`" \
+              "\n監視対象とするサーバを追加します." \
+              "\n追加するとDiscordにサーバー監視報告用のチャンネルを作成します."
         return msg
 
     def valid_custom(self, message, args):
@@ -547,7 +644,9 @@ class DelServerCommand(Command):
         super().__init__(config, "/del server", True)
 
     def usage(self):
-        msg = "**/del server** *[サーバー名(A1-O15)]* : Discordのサーバー監視報告用のチャンネルを削除します."
+        msg = "`/del server　[サーバー名(A1-O15)]`" \
+              "\n監視対象とするサーバを削除します." \
+              "\n削除するとDiscordにサーバー監視報告用のチャンネルもあわせて削除します."
         return msg
 
     def valid_custom(self, message, args):
@@ -575,22 +674,23 @@ class StatusCommand(Command):
         super().__init__(config, "/status", False)
 
     def usage(self):
-        msg = "**/status** : 設定値など現在の状態を表示します."
+        msg = "`/status`" \
+              "\n各設定値や監視状態など現在の状態を表示します."
         return msg
 
     async def execute_cmd(self, message, args):
         msg_started = "監視中" if self.config.is_watch_started else "監視していません"
-        msg = "監視状態:{}\n監視ワールド:{} {}\n監視間隔(秒):{}\n通知対象プレイヤー増加数:{}\nブラックリスト:{}\nブラックリスト侵入中サーバ:{}".format(msg_started,
-                                                                                                        self.config.watch_world,
-                                                                                                        Utils.get_value(
-                                                                                                            "id",
-                                                                                                            self.config.watch_world,
-                                                                                                            "name",
-                                                                                                            consts.CLUSTERS),
-                                                                                                        self.config.watch_interval,
-                                                                                                        self.config.player_sbn_count,
-                                                                                                        self.config.blacklist,
-                                                                                                        self.config.blacklist_notice_server_names)
+        msg = "監視状態:{}\n監視ワールド:{} {}\n監視間隔(秒):{}\n通知対象プレイヤー増加数:{}\n敵プレイヤー:{}\n敵侵入中サーバ:{}".format(msg_started,
+                                                                                                 self.config.watch_world,
+                                                                                                 Utils.get_value(
+                                                                                                     "id",
+                                                                                                     self.config.watch_world,
+                                                                                                     "name",
+                                                                                                     consts.CLUSTERS),
+                                                                                                 self.config.watch_interval,
+                                                                                                 self.config.player_sbn_count,
+                                                                                                 self.config.list_enemy(),
+                                                                                                 self.config.enemy_notice_server_names)
         await self.send_message(message.channel, msg)
         return True
 
@@ -604,7 +704,8 @@ class SetWatchWorldCommand(Command):
         super().__init__(config, "/set world", True)
 
     def usage(self):
-        msg = "**/set world** *[1-4]* : 監視ワールドを設定します." \
+        msg = "`/set world　[1-4]`" \
+              "\n監視ワールドを設定します." \
               "\n設定は数字で入力してください" \
               "\n(1: NA PvE, 2: NA PvP, 3: EU PvE, 4: EU PvP)"
         return msg
@@ -633,13 +734,14 @@ class SetWatchIntervalCommand(Command):
         super().__init__(config, "/set interval", True)
 
     def usage(self):
-        msg = "**/set interval** *[秒]* : 監視間隔(秒)を設定します."
+        msg = "`/set interval [秒]`" \
+              "\n監視間隔(秒)を設定します." \
+              "\n指定された間隔ごとにサーバ情報やプレイヤー情報を取得し出力します."
         return msg
 
     def valid_custom(self, message, args):
         if not args or not args.isdecimal():
             return "監視間隔に数値を設定してください."
-
 
     async def execute_cmd(self, message, args):
         int_val = int(args)
@@ -663,7 +765,9 @@ class SetPlayerSbnCountCommand(Command):
         super().__init__(config, "/set player_count", True)
 
     def usage(self):
-        msg = "**/set player_count *[人数]* : サーバのプレイヤーが一気に増加した場合に通知を行う際の閾値を設定します."
+        msg = "`/set player_count [人数]`" \
+              "\nサーバのプレイヤーが一気に増加した場合に通知を行う際の閾値を設定します." \
+              "\n前回と今回のサーバ人数を比較し、この設定値以上になった場合にサーバ監視報告チャンネルに通知します."
         return msg
 
     def valid_custom(self, message, args):
@@ -692,12 +796,14 @@ class FuckYeahCommand(Command):
         super().__init__(config, "/fuck", True)
 
     def usage(self):
-        msg = "**/fuck** *xxx* : Fuck YEAH !!"
+        msg = "`/fuck xxx`" \
+              "\nFuck YEAH !!"
         return msg
 
     async def execute_cmd(self, message, args):
         msg = "Fuck YEAH !!"
         await self.send_message(message.channel, msg)
-        msg = "https://www.youtube.com/watch?v=IhnUgAaea4M&feature=youtu.be&t=8"
+        # msg = "https://www.youtube.com/watch?v=IhnUgAaea4M&feature=youtu.be&t=8"
+        msg = "https://clips.twitch.tv/PrettiestFaintUdonPoooound"
         await self.send_message(message.channel, msg)
         return True

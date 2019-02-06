@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import configparser
+import json
 
 from discord import ChannelType, Client, Server
 
@@ -18,10 +19,10 @@ class ASWDConfig:
         self.__watch_world = int(self.config.get(consts.SECTION_NAME, consts.KEY_WATCH_WORLD))
         self.__watch_interval = int(self.config.get(consts.SECTION_NAME, consts.KEY_WATCH_INTERVAL))
         self.__player_sbn_count = int(self.config.get(consts.SECTION_NAME, consts.KEY_PLAYER_SBN_COUNT))
-        self.__blacklist = self.config.get(consts.SECTION_NAME, consts.KEY_BLACKLIST).split(",")
+        self.__enemy_list = json.loads(self.config.get(consts.SECTION_NAME, consts.KEY_ENEMY_LIST))
         self.__is_watch_started = False
         self.__last_servers_info = {}
-        self.__blacklist_notice_server_names = []
+        self.__enemy_notice_server_names = []
         self.__client = client_val
 
     @property
@@ -60,36 +61,51 @@ class ASWDConfig:
         self.write()
 
     @property
-    def blacklist(self):
-        return self.__blacklist
+    def enemy_list(self):
+        return self.__enemy_list
 
-    def add_blacklist(self, player):
+    def add_enemy(self, name, company):
         """
-        ブラックリストにプレイヤーを追加する.
-        :param player: プレイヤー名
-        :type player: str
+        敵対プレイヤーを追加する.
+        :param name: プレイヤー名(Steam名)
+        :type name: str
+        :param company: カンパニー名
+        :type company: str
         :return: 処理結果(True: 追加成功, False: 既に存在するプレイヤー名がある等で追加失敗)
         :rtype: bool
         """
-        if player in self.blacklist:
-            return False
-        self.blacklist.append(player)
+        for enemy in self.enemy_list:
+            if enemy == name:
+                return False
+        self.enemy_list[name] = company.strip() if company else ""
         self.write()
         return True
 
-    def del_blacklist(self, player):
+    def del_enemy(self, name):
         """
-        ブラックリストからプレイヤーを削除する.
-        :param player: プレイヤー名
-        :type player: str
+        敵対プレイヤーを削除する.
+        :param name: プレイヤー名(Steam名)
+        :type name: str
         :return: 処理結果(True: 削除成功, False: 存在しないプレイヤー名等で削除失敗)
         :rtype: bool
         """
-        if player not in self.blacklist:
-            return False
-        self.blacklist.remove(player)
-        self.write()
-        return True
+        for enemy in self.enemy_list:
+            if enemy == name:
+                self.enemy_list.pop(name)
+                self.write()
+                return True
+        return False
+
+    def list_enemy(self):
+        """
+        敵プレイヤー一覧を文字列で取得する.
+        :return: 敵プレイヤー一覧
+        :rtype: str
+        """
+        ret = []
+        for enemy in self.enemy_list:
+            ret.append("{}({})".format(enemy, self.enemy_list[enemy]))
+        return ", ".join(ret)
 
     @property
     def is_watch_started(self):
@@ -108,8 +124,8 @@ class ASWDConfig:
         self.__last_servers_info = val
 
     @property
-    def blacklist_notice_server_names(self):
-        return self.__blacklist_notice_server_names
+    def enemy_notice_server_names(self):
+        return self.__enemy_notice_server_names
 
     @property
     def client(self):
@@ -127,7 +143,7 @@ class ASWDConfig:
         configw.set(consts.SECTION_NAME, consts.KEY_WATCH_WORLD, str(self.watch_world))
         configw.set(consts.SECTION_NAME, consts.KEY_WATCH_INTERVAL, str(self.watch_interval))
         configw.set(consts.SECTION_NAME, consts.KEY_PLAYER_SBN_COUNT, str(self.player_sbn_count))
-        configw.set(consts.SECTION_NAME, consts.KEY_BLACKLIST, ",".join(self.blacklist))
+        configw.set(consts.SECTION_NAME, consts.KEY_ENEMY_LIST, json.dumps(self.enemy_list))
         with open(consts.CONFIG_FILE_NAME, 'w', encoding='utf-8') as configfile:
             configw.write(configfile)
 
